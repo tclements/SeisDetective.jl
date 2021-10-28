@@ -1,0 +1,13 @@
+name = "SeisDetective"
+uuid = "fefaf115-fdb9-440b-826d-0e78e901b1e3"
+authors = ["Tim Clements <tclements@usgs.gov> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
