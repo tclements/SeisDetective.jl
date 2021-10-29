@@ -1,5 +1,8 @@
 module SeisDetective
 
-# Write your package code here.
+using SeisIO
+using Statistics
+
+include("trigger.jl")
 
 end
