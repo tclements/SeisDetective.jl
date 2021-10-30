@@ -1,6 +1,7 @@
 using SeisDetective
+using SeisIO
+using SeisIO.RandSeis
+using Statistics 
 using Test
 
-@testset "SeisDetective.jl" begin
-    # Write your tests here.
-end
+include("test_trigger.jl")
