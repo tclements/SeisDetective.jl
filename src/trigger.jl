@@ -1,146 +1,56 @@
-export recursive_sta_lta, classic_sta_lta, carl_sta_trig, delayed_sta_lta
-export z_detect, trigger_onset
+export classic_sta_lta, classic_sta_lta!, delayed_sta_lta, delayed_sta_lta!
+export recursive_sta_lta, recursive_sta_lta!, carl_sta_trig, carl_sta_trig!
+export z_detect, z_detect!, trigger_onset
 
 @doc """
-  recursive_sta_lta(C, nsta, nlta)
-
-Computes recursive STA/LTA. 
-
-The length of the STA and LTA are given by `sta` and `sta` in seconds, respectively.
-
-# Arguments
-- `C::GphysChannel`: GphysChannel (SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
-- `sta:Int`: Length of short time average window in seconds
-- `lta:Int`: Length of long time average window in seconds
-
-See also: [`classic_sta_lta`](@ref), [`carl_sta_trig`](@ref), [`delayed_sta_lta`](@ref) [`z_detect`](@ref)
-""" recursive_sta_lta
-function recursive_sta_lta(C::GphysChannel, sta::Real, lta::Real)
-    nsta = round(Int64, C.fs * sta)
-    nlta = round(Int64, C.fs * lta)
-    return recursive_sta_lta(C.x,nsta,nlta)
-end
-function recursive_sta_lta(A::AbstractArray, nsta::Int, nlta::Int)
-    nsta > nlta ? throw(DomainError((nsta,nlta), "Short-term average must be less than long-term average")) : nothing
-    nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
-    nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
-    N = size(A,1)
-    T = eltype(A)
-    nsta > N ? throw(DomainError(nsta,"Short-term average must be less than length of time series")) : nothing
-    nlta > N ? throw(DomainError(nlta,"Long-term average must be less than length of time series")) : nothing
-
-    # compute short time average (STA) and long term average (LTA)
-    # given by Evans and Allen 
-    csta = 1.0 / nsta 
-    clta = 1.0 / nlta 
-    sta = 0.0 
-    lta = 1e-99 # avoid zero division 
-    charfct = zeros(eltype(A),size(A))
-    icsta = 1.0 - csta 
-    iclta = 1.0 - clta 
-
-    for ii in 2:N
-        sq = A[ii] ^ 2 
-        sta = csta * sq + icsta * sta 
-        lta = clta * sq + iclta * lta 
-        charfct[ii] = sta / lta 
-
-        if ii < nlta 
-            charfct[ii] = 0.0 
-        end
-    end 
-    return charfct 
-end
-
-@doc """
-  carl_sta_trig(C, sta, lta, ratio, quiet)
-
-Computes the CarlSTAtrig characteristic function. 
-
-eta = star - (ratio * ltar) - abs(sta - lta) - quiet
-
-# Arguments
-- `C::GphysChannel`: GphysChannel (SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
-- `sta:Int`: Length of short time average window in seconds
-- `lta:Int`: Length of long time average window in seconds
-- `ratio:AbstractFloat`: as `ratio` gets smaller, carl_sta_trig gets more sensitive
-- `Quiet:AbstractFloat`: as `quiet` gets smaller, carl_sta_trig gets more sensitive
-""" carl_sta_trig
-function carl_sta_trig(C::GphysChannel, sta::Real, lta::Real, ratio::Real, quiet::Real)
-    nsta = round(Int64, C.fs * sta)
-    nlta = round(Int64, C.fs * lta)
-    return carl_sta_trig(C.x,nsta,nlta,ratio,quiet)
-end
-function carl_sta_trig(A::AbstractArray, nsta::Int, nlta::Int, ratio::Real, quiet::Real)
-    nsta > nlta ? throw(DomainError((nsta,nlta), "Short-term average must be less than long-term average")) : nothing
-    nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
-    nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
-    N = size(A,1)
-    T = eltype(A)
-    nsta > N ? throw(DomainError(nsta,"Short-term average must be less than length of time series")) : nothing
-    nlta > N ? throw(DomainError(nlta,"Long-term average must be less than length of time series")) : nothing
-    sta = zeros(T,N)
-    lta = deepcopy(sta)
-    star = deepcopy(sta)
-    ltar = deepcopy(sta)
-    pad_sta = zeros(T,nsta)
-    pad_lta = zeros(T,nlta)
-
-    # compute the short time average (STA)
-    for ii in 1:nsta
-        sta .+= vcat(pad_sta,A[ii:N - nsta - 1 + ii])
-    end
-    sta ./= nsta
-
-    # compute the long time average (LTA)
-    for ii in 1:nlta
-        lta .+= vcat(pad_lta, sta[ii:N - nlta - 1 + ii])
-    end
-    lta ./= nlta 
-    lta = vcat(T(0),lta[1:end-1])
-    
-    # compute star, average of abs diff between trace and lta 
-    for ii in 1:nsta
-        star .+= vcat(pad_sta, abs.(A[ii:N - nsta - 1 + ii] .- lta[ii:N - nsta - 1 + ii]))
-    end
-    star ./= nsta 
-
-    # compute ltar, long term average over star 
-    for ii in 1:nlta 
-        ltar .+= vcat(pad_lta, star[ii:N - nlta - 1 + ii])
-    end 
-    ltar ./= nlta 
-
-    eta = star .- (T(ratio) .* ltar) .- abs.(sta .- lta) .- T(quiet)
-    eta[1:nlta] .= T(-1.0) 
-    return eta 
-end
-
-@doc """
-  classic_sta_lta(C, sta, lta)
+  classic_sta_lta!(S, sta, lta)
 
 Computes classic STA/LTA. 
 
-The length of the STA and LTA are given by `sta` and `sta` in seconds, respectively.
+The length of the STA and LTA are given by `sta` and `lta` in seconds, respectively.
+
+!!! note
+
+    The in-place version (classic_sta_lta!) overwrites the seismic trace with the STA/LTA 
+    characteristic function. 
 
 # Arguments
-- `C::GphysChannel`: GphysChannel (SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
+- `S::GphysData`: GphysData (SeisData, SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
 - `sta:Int`: Length of short time average window in seconds
 - `lta:Int`: Length of long time average window in seconds
-""" classic_sta_lta
-function classic_sta_lta(C::GphysChannel, sta::Real, lta::Real)
+""" classic_sta_lta!
+function classic_sta_lta!(S::GphysData, sta::Real, lta::Real)
+    for ii in 1:S.n 
+        classic_sta_lta!(S[ii], sta, lta)
+    end
+    return nothing
+end
+function classic_sta_lta!(C::GphysChannel, sta::Real, lta::Real)
     nsta = round(Int64, C.fs * sta)
     nlta = round(Int64, C.fs * lta)
-    return classic_sta_lta(C.x,nsta,nlta)
+    C.x .= classic_sta_lta(C.x, nsta, nlta)
+    return nothing
+end
+
+@doc classic_sta_lta!
+function classic_sta_lta(S::GphysData, sta::Real, lta::Real)
+    U = deepcopy(S)
+    classic_sta_lta!(U, sta, lta)
+    return U 
+end
+function classic_sta_lta(C::GphysChannel, sta::Real, lta::Real)
+    U = deepcopy(C)
+    classic_sta_lta!(U, sta, lta)
+    return U 
 end
 function classic_sta_lta(A::AbstractArray, nsta::Real, nlta::Real)
-    nsta > nlta ? throw(DomainError((nsta,nlta), "Short-term average must be less than long-term average")) : nothing
+    nsta > nlta ? throw(DomainError((nsta, nlta), "Short-term average must be less than long-term average")) : nothing
     nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
     nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
     N = size(A,1)
     T = eltype(A)
-    nsta > N ? throw(DomainError(nsta,"Short-term average must be less than length of time series")) : nothing
-    nlta > N ? throw(DomainError(nlta,"Long-term average must be less than length of time series")) : nothing
+    nsta > N ? throw(DomainError(nsta, "Short-term average must be less than length of time series")) : nothing
+    nlta > N ? throw(DomainError(nlta, "Long-term average must be less than length of time series")) : nothing
 
     # cumulative sum can be exploited to calculate a moving average 
     sta = cumsum(A .^ 2)
@@ -163,35 +73,59 @@ function classic_sta_lta(A::AbstractArray, nsta::Real, nlta::Real)
 end
 
 @doc """
-  delayed_sta_lta(C, sta, lta)
+  delayed_sta_lta!(S, sta, lta)
 
 Delayed STA/LTA from Withers, 1998. 
 
+!!! note
+
+    The in-place version (delayed_sta_lta!) overwrites the seismic trace with the STA/LTA 
+    characteristic function.
+
 # Arguments
-- `C::GphysChannel`: GphysChannel (SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
-- `sta:Int`: Length of short time average window in seconds
-- `lta:Int`: Length of long time average window in seconds
-""" delayed_sta_lta
-function delayed_sta_lta(C::GphysChannel, sta::Real, lta::Real)
+- `S::GphysData`: GphysData (SeisData, SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
+- `sta::Real`: Length of short time average window in seconds
+- `lta::Real`: Length of long time average window in seconds
+""" delayed_sta_lta!
+function delayed_sta_lta!(S::SeisData, sta::Real, lta::Real)
+    for ii in 1:S.n
+        delayed_sta_lta!(S[ii], sta, lta)
+    end
+    return nothing
+end
+function delayed_sta_lta!(C::GphysChannel, sta::Real, lta::Real)
     nsta = round(Int64, C.fs * sta)
     nlta = round(Int64, C.fs * lta)
-    return delayed_sta_lta(C.x,nsta,nlta)
+    C.x .= delayed_sta_lta(C.x, nsta, nlta)
+    return nothing
+end
+
+@doc delayed_sta_lta!
+function delayed_sta_lta(S::GphysData, sta::Real, lta::Real)
+    U = deepcopy(S)
+    delayed_sta_lta!(U, sta, lta)
+    return U 
+end
+function delayed_sta_lta(C::GphysChannel, sta::Real, lta::Real)
+   U = deepcopy(C)
+   delayed_sta_lta!(U, sta, lta)
+   return U
 end
 function delayed_sta_lta(A::AbstractArray, nsta::Int, nlta::Int)
-    nsta > nlta ? throw(DomainError((nsta,nlta), "Short-term average must be less than long-term average")) : nothing
+    nsta > nlta ? throw(DomainError((nsta, nlta), "Short-term average must be less than long-term average")) : nothing
     nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
     nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
-    N = size(A,1)
+    N = size(A, 1)
     T = eltype(A)
-    nsta > N ? throw(DomainError(nsta,"Short-term average must be less than length of time series")) : nothing
-    nlta > N ? throw(DomainError(nlta,"Long-term average must be less than length of time series")) : nothing
+    nsta > N ? throw(DomainError(nsta, "Short-term average must be less than length of time series")) : nothing
+    nlta > N ? throw(DomainError(nlta, "Long-term average must be less than length of time series")) : nothing
 
-    sta = zeros(T,N)
-    lta = zeros(T,N)
+    sta = zeros(T, N)
+    lta = zeros(T, N)
     sta[1] = A[1] ^ 2 / nsta
     for ii in 2:N
-        sta[ii] = (A[ii] ^ 2 + A[max(1,ii - nsta)] ^ 2) / nsta + sta[ii - 1]
-        lta[ii] = (A[max(1,ii - nsta - 1)] ^ 2 + A[max(1, ii - nsta - nlta -1)] ^ 2) / nlta + lta[max(1,ii -1)]
+        sta[ii] = (A[ii] ^ 2 + A[max(1, ii - nsta)] ^ 2) / nsta + sta[ii - 1]
+        lta[ii] = (A[max(1, ii - nsta - 1)] ^ 2 + A[max(1, ii - nsta - nlta -1)] ^ 2) / nlta + lta[max(1, ii -1)]
     end
     sta[1:min(N,nlta + nsta + 50)] .= 0.0 
     lta[1:min(N,nlta + nsta + 50)] .= 1.0 # avoid division by zero 
@@ -199,30 +133,218 @@ function delayed_sta_lta(A::AbstractArray, nsta::Int, nlta::Int)
 end
 
 @doc """
-  z_detect(A, nsta)
+  recursive_sta_lta!(S, sta, lta)
+
+Computes recursive STA/LTA. 
+
+The length of the STA and LTA are given by `sta` and `sta` in seconds, respectively. 
+
+!!! note
+
+    The in-place version (recursive_sta_lta!) overwrites the seismic trace with the STA/LTA 
+    characteristic function. 
+
+# Arguments
+- `S::GphysData`: GphysData (SeisData, SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
+- `sta:Int`: Length of short time average window in seconds
+- `lta:Int`: Length of long time average window in seconds
+
+See also: [`classic_sta_lta`](@ref), [`carl_sta_trig`](@ref), [`delayed_sta_lta`](@ref) [`z_detect`](@ref)
+""" recursive_sta_lta!
+function recursive_sta_lta!(S::GphysData, sta::Real, lta::Real)
+    for ii in 1:S.n
+        recursive_sta_lta!(S[ii], sta, lta)
+    end
+    return nothing
+end
+function recursive_sta_lta!(C::GphysChannel, sta::Real, lta::Real)
+    nsta = round(Int64, C.fs * sta)
+    nlta = round(Int64, C.fs * lta)
+    C.x .= recursive_sta_lta(C.x, nsta, nlta)
+    return nothing
+end
+
+@doc recursive_sta_lta!
+function recursive_sta_lta(S::GphysData, sta::Real, lta::Real) 
+    U = deepcopy(S)
+    recursive_sta_lta!(U, sta, lta)
+    return U
+end
+function recursive_sta_lta(C::GphysChannel, sta::Real, lta::Real) 
+    U = deepcopy(C)
+    recursive_sta_lta!(U, sta, lta)
+    return U
+end
+function recursive_sta_lta(A::AbstractArray, nsta::Int, nlta::Int)
+    nsta > nlta ? throw(DomainError((nsta, nlta), "Short-term average must be less than long-term average")) : nothing
+    nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
+    nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
+    N = size(A,1)
+    T = eltype(A)
+    nsta > N ? throw(DomainError(nsta, "Short-term average must be less than length of time series")) : nothing
+    nlta > N ? throw(DomainError(nlta, "Long-term average must be less than length of time series")) : nothing
+
+    # compute short time average (STA) and long term average (LTA)
+    # given by Evans and Allen 
+    csta = 1.0 / nsta 
+    clta = 1.0 / nlta 
+    sta = 0.0 
+    lta = 1e-99 # avoid zero division 
+    charfct = zeros(eltype(A), size(A))
+    icsta = 1.0 - csta 
+    iclta = 1.0 - clta 
+
+    for ii in 2:N
+        sq = A[ii] ^ 2 
+        sta = csta * sq + icsta * sta 
+        lta = clta * sq + iclta * lta 
+        charfct[ii] = sta / lta 
+
+        if ii < nlta 
+            charfct[ii] = 0.0 
+        end
+    end 
+    return charfct 
+end
+
+@doc """
+  carl_sta_trig!(S, sta, lta, ratio, quiet)
+
+Computes the CarlSTAtrig characteristic function. 
+
+eta = star - (ratio * ltar) - abs(sta - lta) - quiet
+
+!!! note
+
+    The in-place version (carl_sta_trig!) overwrites the seismic trace with the STA/LTA 
+    characteristic function. 
+
+# Arguments
+- `S::GphysData`: GphysData (SeisData, SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
+- `sta::Real`: Length of short time average window in seconds
+- `lta::Real`: Length of long time average window in seconds
+- `ratio::AbstractFloat`: as `ratio` gets smaller, carl_sta_trig gets more sensitive
+- `Quiet::AbstractFloat`: as `quiet` gets smaller, carl_sta_trig gets more sensitive
+""" carl_sta_trig!
+function carl_sta_trig!(S::GphysData, sta::Real, lta::Real, ratio::Real, quiet::Real)
+    for ii in 1:S.n 
+        carl_sta_trig!(S[ii],sta, lta, ratio, quiet)
+    end
+    return nothing
+end
+function carl_sta_trig!(C::GphysChannel, sta::Real, lta::Real, ratio::Real, quiet::Real)
+    nsta = round(Int64, C.fs * sta)
+    nlta = round(Int64, C.fs * lta)
+    C.x .= carl_sta_trig(C.x, nsta, nlta, ratio, quiet)
+    return nothing
+end
+
+@doc carl_sta_trig!
+function carl_sta_trig(S::GphysData, sta::Real, lta::Real, ratio::Real, quiet::Real)
+    U = deepcopy(S)
+    carl_sta_trig!(U, sta, lta, ratio, quiet)
+    return U
+end
+function carl_sta_trig(C::GphysChannel, sta::Real, lta::Real, ratio::Real, quiet::Real)
+    U = deepcopy(C)
+    carl_sta_trig!(U, sta, lta, ratio, quiet)
+    return U
+end
+function carl_sta_trig(A::AbstractArray, nsta::Int, nlta::Int, ratio::Real, quiet::Real)
+    nsta > nlta ? throw(DomainError((nsta,nlta), "Short-term average must be less than long-term average")) : nothing
+    nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
+    nlta < 0 ? throw(DomainError(nlta, "Long-term average must be greater than zero")) : nothing
+    N = size(A,1)
+    T = eltype(A)
+    nsta > N ? throw(DomainError(nsta, "Short-term average must be less than length of time series")) : nothing
+    nlta > N ? throw(DomainError(nlta, "Long-term average must be less than length of time series")) : nothing
+    sta = zeros(T,N)
+    lta = deepcopy(sta)
+    star = deepcopy(sta)
+    ltar = deepcopy(sta)
+    pad_sta = zeros(T, nsta)
+    pad_lta = zeros(T, nlta)
+
+    # compute the short time average (STA)
+    for ii in 1:nsta
+        sta .+= vcat(pad_sta, A[ii:N - nsta - 1 + ii])
+    end
+    sta ./= nsta
+
+    # compute the long time average (LTA)
+    for ii in 1:nlta
+        lta .+= vcat(pad_lta, sta[ii:N - nlta - 1 + ii])
+    end
+    lta ./= nlta 
+    lta = vcat(T(0), lta[1:end-1])
+    
+    # compute star, average of abs diff between trace and lta 
+    for ii in 1:nsta
+        star .+= vcat(pad_sta, abs.(A[ii:N - nsta - 1 + ii] .- lta[ii:N - nsta - 1 + ii]))
+    end
+    star ./= nsta 
+
+    # compute ltar, long term average over star 
+    for ii in 1:nlta 
+        ltar .+= vcat(pad_lta, star[ii:N - nlta - 1 + ii])
+    end 
+    ltar ./= nlta 
+
+    eta = star .- (T(ratio) .* ltar) .- abs.(sta .- lta) .- T(quiet)
+    eta[1:nlta] .= T(-1.0) 
+    return eta 
+end
+
+@doc """
+  z_detect!(S, sta)
 
 Z-detector from Withers, 1998. 
 
+!!! note
+
+    The in-place version (delayed_sta_lta!) overwrites the seismic trace with the STA/LTA 
+    characteristic function.
+
 # Arguments
-- `C::GphysChannel`: GphysChannel (SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
-- `sta:Int`: Length of short time average window in seconds
-""" z_detect
-function z_detect(C::GphysChannel, sta::Real)
+- `S::GphysData`: GphysData (SeisData, SeisChannel, SeisIO.Nodal.NodalChannel, SeisIO.Quake.EventChannel).
+- `sta::Real`: Length of short time average window in seconds
+""" z_detect!
+function z_detect!(S::GphysData, sta::Real)
+    for ii in 1:S.n
+        z_detect!(S[ii], sta)
+    end
+    return nothing 
+end
+function z_detect!(C::GphysChannel, sta::Real)
     nsta = round(Int64, C.fs * sta)
-    return z_detect(C.x,nsta)
+    C.x .= z_detect(C.x, nsta)
+    return nothing
+end
+
+@doc z_detect!
+function z_detect(S::GphysData, sta::Real)
+    U = deepcopy(S)
+    z_detect!(U, sta)
+    return U
+end
+function z_detect(C::GphysChannel, sta::Real)
+   U = deepcopy(C)
+   z_detect!(U, sta)
+   return U 
 end
 function z_detect(A::AbstractArray, nsta::Int)
     nsta < 0 ? throw(DomainError(nsta, "Short-term average must be less greater than zero")) : nothing
-    N = size(A,1)
+    N = size(A, 1)
     T = eltype(A)
-    nsta > N ? throw(DomainError(nsta,"Short-term average must be less than length of time series")) : nothing
+    nsta > N ? throw(DomainError(nsta, "Short-term average must be less than length of time series")) : nothing
 
     # Z-detector given by Swindell and Snell, 1977 
-    sta = zeros(T,N)
-    pad_sta = zeros(T,nsta)
+    sta = zeros(T, N)
+    A2 = A .^ 2
 
+    # replace this with convolution
     for ii in 1:nsta 
-        sta .+= vcat(pad_sta, A[ii:N - nsta - 1 + ii] .^ 2)
+        sta[ii:N - nsta - 1 + ii] .+= A2[ii:N - nsta - 1 + ii]
     end
     return (sta .- mean(sta)) ./ std(sta)
 end

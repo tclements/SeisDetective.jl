@@ -2,123 +2,130 @@
 
 @testset "Classic STA/LTA" begin 
     # use random SeisChannel with fs > 1.0 
-    C = randSeisChannel(s=true,c=false,nx=10000,fs_min=1.)
-
+    S = randSeisData(s=1.0, c=0.0, nx=10000, fs_min=1.0)
     sta = rand() .* 10.0
     lta = sta * 2.0  
+    U = classic_sta_lta(S, sta, lta)
 
     # should type, length, output  
-    @test isa(classic_sta_lta(C,sta,lta), Array)
-    @test length(classic_sta_lta(C,sta,lta)) == 10000 
-    @test eltype(classic_sta_lta(C,sta,lta)) == eltype(C.x)
+    @test isa(U, SeisData)
+    @test [eltype(U.x[ii]) for ii in 1:U.n] == [eltype(S.x[ii]) for ii in 1:S.n]
+    @test [length(S[ii].x) for ii in 1:S.n] == [length(U[ii].x) for ii in 1:S.n]
+    @test U.x != S.x 
 
     # test when sta > lta 
-    @test_throws DomainError classic_sta_lta(C,lta,sta)
+    @test_throws DomainError classic_sta_lta(S,lta,sta)
+
+    # test in-place 
+    classic_sta_lta!(S, sta, lta)
+    @test U == S
 
     # test SeisChannel shorter than STA or LTA 
-    C = randSeisChannel(s=true,c=false,nx=100,fs_min=1.)
-    sta = -0.5 # too short! 
-    @test_throws DomainError classic_sta_lta(C,sta,lta)
-    lta = -0.25 
-    @test_throws DomainError classic_sta_lta(C,sta,lta)
+    S = randSeisData(s=1.0,c=0.0,nx=100,fs_min=1.)
+    @test_throws DomainError classic_sta_lta(S,-0.5,lta)
+    @test_throws DomainError classic_sta_lta(S,-0.5,-0.25)
+
 end
 
 @testset "Recursive STA/LTA" begin 
     # use random SeisChannel with fs > 1.0 
-    C = randSeisChannel(s=true,c=false,nx=10000,fs_min=1.)
-
+    S = randSeisData(s=1.0, c=0.0, nx=10000, fs_min=1.0)
     sta = rand() .* 10.0
     lta = sta * 2.0  
+    U = recursive_sta_lta(S, sta, lta)
 
     # should type, length, output  
-    @test isa(recursive_sta_lta(C,sta,lta), Array)
-    @test length(recursive_sta_lta(C,sta,lta)) == 10000 
-    @test eltype(recursive_sta_lta(C,sta,lta)) == eltype(C.x)
+    @test isa(U, SeisData)
+    @test [eltype(U.x[ii]) for ii in 1:U.n] == [eltype(S.x[ii]) for ii in 1:S.n]
+    @test [length(S[ii].x) for ii in 1:S.n] == [length(U[ii].x) for ii in 1:S.n]
+    @test U.x != S.x 
 
     # test when sta > lta 
-    @test_throws DomainError recursive_sta_lta(C,lta,sta)
+    @test_throws DomainError recursive_sta_lta(S,lta,sta)
+
+    # test in-place 
+    recursive_sta_lta!(S, sta, lta)
+    @test U == S
 
     # test SeisChannel shorter than STA or LTA 
-    C = randSeisChannel(s=true,c=false,nx=100,fs_min=1.)
-    sta = -0.5 # too short! 
-    lta = 10. 
-    @test_throws DomainError recursive_sta_lta(C,sta,lta)
-    lta = -0.25 
-    @test_throws DomainError recursive_sta_lta(C,sta,lta)
+    S = randSeisData(s=1.0,c=0.0,nx=100,fs_min=1.)
+    @test_throws DomainError recursive_sta_lta(S,-0.5,lta)
+    @test_throws DomainError recursive_sta_lta(S,-0.5,-0.25)
 end
 
 @testset "Delayed STA/LTA" begin 
-    # use random SeisChannel with fs > 1.0 
-    C = randSeisChannel(s=true,c=false,nx=10000,fs_min=1.)
-
-    sta = rand() .* 10.0
-    lta = sta * 2.0  
-
-    # should type, length, output  
-    @test isa(delayed_sta_lta(C,sta,lta), Array)
-    @test length(delayed_sta_lta(C,sta,lta)) == 10000 
-    @test eltype(delayed_sta_lta(C,sta,lta)) == eltype(C.x)
-
-    # test when sta > lta 
-    @test_throws DomainError delayed_sta_lta(C,lta,sta)
-
-    # test SeisChannel shorter than STA or LTA 
-    C = randSeisChannel(s=true,c=false,nx=100,fs_min=1.)
-    sta = -0.5 # too short! 
-    lta = 10. 
-    @test_throws DomainError delayed_sta_lta(C,sta,lta)
-    lta = -0.25 
-    @test_throws DomainError delayed_sta_lta(C,sta,lta)
+        # use random SeisChannel with fs > 1.0 
+        S = randSeisData(s=1.0, c=0.0, nx=10000, fs_min=1.0)
+        sta = rand() .* 10.0
+        lta = sta * 2.0  
+        U = delayed_sta_lta(S, sta, lta)
+    
+        # should type, length, output  
+        @test isa(U, SeisData)
+        @test [eltype(U.x[ii]) for ii in 1:U.n] == [eltype(S.x[ii]) for ii in 1:S.n]
+        @test [length(S[ii].x) for ii in 1:S.n] == [length(U[ii].x) for ii in 1:S.n]
+        @test U.x != S.x 
+    
+        # test when sta > lta 
+        @test_throws DomainError delayed_sta_lta(S,lta,sta)
+    
+        # test in-place 
+        delayed_sta_lta!(S, sta, lta)
+        @test U == S
+    
+        # test SeisChannel shorter than STA or LTA 
+        S = randSeisData(s=1.0,c=0.0,nx=100,fs_min=1.)
+        @test_throws DomainError delayed_sta_lta(S,-0.5,lta)
+        @test_throws DomainError delayed_sta_lta(S,-0.5,-0.25)
 end
 
 @testset "Carl STA/LTA" begin 
-    # use random SeisChannel with fs > 1.0 
-    C = randSeisChannel(s=true,c=false,nx=10000,fs_min=1.)
-
-    sta = rand() .* 10.0
-    lta = sta * 2.0  
-    ratio = 0.8 
-    quiet = 0.8 
-
-    # should type, length, output  
-    @test isa(carl_sta_trig(C,sta,lta,ratio,quiet), Array)
-    @test length(carl_sta_trig(C,sta,lta,ratio,quiet)) == 10000 
-    @test eltype(carl_sta_trig(C,sta,lta,ratio,quiet)) == eltype(C.x)
-
-    # test when sta > lta 
-    @test_throws DomainError carl_sta_trig(C,lta,sta,ratio,quiet)
-
-    # test SeisChannel shorter than STA or LTA 
-    C = randSeisChannel(s=true,c=false,nx=100,fs_min=1.)
-    sta = -0.5 # too short! 
-    lta = 10. 
-    @test_throws DomainError carl_sta_trig(C,sta,lta,ratio,quiet)
-    lta = -0.25 
-    @test_throws DomainError carl_sta_trig(C,sta,lta,ratio,quiet)
+        # use random SeisChannel with fs > 1.0 
+        S = randSeisData(s=1.0, c=0.0, nx=10000, fs_min=1.0)
+        sta = rand() .* 10.0
+        lta = sta * 2.0  
+        ratio = 0.8 
+        quiet = 0.8
+        U = carl_sta_trig(S, sta, lta, ratio, quiet)
+    
+        # should type, length, output  
+        @test isa(U, SeisData)
+        @test [eltype(U.x[ii]) for ii in 1:U.n] == [eltype(S.x[ii]) for ii in 1:S.n]
+        @test [length(S[ii].x) for ii in 1:S.n] == [length(U[ii].x) for ii in 1:S.n]
+        @test U.x != S.x 
+    
+        # test when sta > lta 
+        @test_throws DomainError carl_sta_trig(S, lta, sta, ratio, quiet)
+    
+        # test in-place 
+        carl_sta_trig!(S, sta, lta, ratio, quiet)
+        @test U == S
+    
+        # test SeisChannel shorter than STA or LTA 
+        S = randSeisData(s=1.0,c=0.0,nx=100,fs_min=1.)
+        @test_throws DomainError carl_sta_trig(S,-0.5,lta,ratio,quiet)
+        @test_throws DomainError carl_sta_trig(S,-0.5,-0.25,ratio,quiet)
 end
 
 @testset "Z-detect STA/LTA" begin 
-    # use random SeisChannel with fs > 1.0 
-    C = randSeisChannel(s=true,c=false,nx=10000,fs_min=1.)
-
-    sta = rand() .* 10.0
-    lta = sta * 2.0  
-
-    # should type, length, output  
-    @test isa(z_detect(C,sta), Array)
-    @test length(z_detect(C,sta)) == 10000 
-    @test eltype(z_detect(C,sta)) == eltype(C.x)
-
-    # test when sta > lta 
-    @test_throws DomainError delayed_sta_lta(C,lta,sta)
-
-    # test SeisChannel shorter than STA or LTA 
-    C = randSeisChannel(s=true,c=false,nx=100,fs_min=1.)
-    sta = -0.5 # too short! 
-    lta = 10. 
-    @test_throws DomainError z_detect(C,sta)
-    lta = -0.25 
-    @test_throws DomainError z_detect(C,sta)
+        # use random SeisChannel with fs > 1.0 
+        S = randSeisData(s=1.0, c=0.0, nx=10000, fs_min=1.0)
+        sta = rand() .* 10.0
+        U = z_detect(S, sta)
+    
+        # should type, length, output  
+        @test isa(U, SeisData)
+        @test [eltype(U.x[ii]) for ii in 1:U.n] == [eltype(S.x[ii]) for ii in 1:S.n]
+        @test [length(S[ii].x) for ii in 1:S.n] == [length(U[ii].x) for ii in 1:S.n]
+        @test U.x != S.x 
+    
+        # test in-place 
+        z_detect!(S, sta)
+        @test U == S
+    
+        # test SeisChannel shorter than STA or LTA 
+        S = randSeisData(s=1.0,c=0.0,nx=100,fs_min=1.)
+        @test_throws DomainError z_detect(S,-0.5)
 end
 
 @testset "Trigger on/off" begin 
@@ -131,7 +138,8 @@ end
     # choose random window 
     sta = rand() .* 10.0
     lta = sta * 5.0  
-    cft = classic_sta_lta(C,sta,lta)
+    classic_sta_lta!(C,sta,lta)
+    cft = C.x
 
     # on/off thresholds 
     thresh1 = 4.0
